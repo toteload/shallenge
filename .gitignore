@@ -1,0 +1,9 @@
+.ninja/
+.vs/
+__pycache__/
+build.ninja
+out/
+*.nvuser
+*.ncu-rep
+*.pdb
+*.bat
