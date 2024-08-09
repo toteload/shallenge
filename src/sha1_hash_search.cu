@@ -47,7 +47,7 @@ void initialize_cuda_constants() {
 }
 
 // Returns true if the candidate hash was better
-__inline_hint__ __device__ __host__
+__device__ __host__
 bool is_better_hash(u32 best[SHA1_STATE_SIZE], u32 candidate[SHA1_STATE_SIZE]) {
     for (u32 i = 0; i < SHA1_STATE_SIZE; i++) {
         if (best[i] < candidate[i]) {
@@ -62,15 +62,16 @@ bool is_better_hash(u32 best[SHA1_STATE_SIZE], u32 candidate[SHA1_STATE_SIZE]) {
     return false;
 }
 
-__inline_hint__ __device__ 
+__device__ 
 void sha1(const u8 block[64], u32 state[SHA1_STATE_SIZE]);
 
 __global__ 
-void search_block(const u8 payload[64], const u32 *base_idx, u32 *base_out) {
+void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
     u32 offset = threadIdx.x + blockIdx.x * blockDim.x;
 
-    u32 const *idx = base_idx + SEARCH_BLOCK_SIZE * offset;
-    u32       *out = base_out + SHA1_STATE_SIZE   * offset;
+    u8  const *payload = base_payload + 64 * offset;
+    u32 const *idx     = base_idx     + SEARCH_BLOCK_SIZE * offset;
+    u32       *out     = base_out     + SHA1_STATE_SIZE   * offset;
 
     // Copy the payload
     u8 block[64];
