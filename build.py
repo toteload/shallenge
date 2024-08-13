@@ -163,11 +163,11 @@ def create_build_ninja():
         },
         )
 
-    #out.build(
-    #    outputs  = 'test',
-    #    rule     = 'phony',
-    #    implicit = outd('sha1_hash_search.test.exe'),
-    #    )
+    out.build(
+        outputs  = 'test',
+        rule     = 'phony',
+        implicit = outd('hash_search.test.exe'),
+        )
 
 if __name__ == '__main__':
     create_build_ninja()

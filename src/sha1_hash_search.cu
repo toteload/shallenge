@@ -97,23 +97,31 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
 
 #define CH(x,y,z)  (((x) & (y)) ^ (~(x) & (z)))
 #define MAJ(x,y,z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
-#define EP0(x)     (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22))
-#define EP1(x)     (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25))
-#define SIG0(x)    (ROTRIGHT(x,7) ^ ROTRIGHT(x,18) ^ ((x) >> 3))
+#define EP0(x)     (ROTRIGHT(x, 2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22))
+#define EP1(x)     (ROTRIGHT(x, 6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25))
+#define SIG0(x)    (ROTRIGHT(x, 7) ^ ROTRIGHT(x,18) ^ ((x) >> 3))
 #define SIG1(x)    (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10))
 
-#define ROUND(k, i) \
-    t1 = h + EP1(e) + CH(e,f,g) + k + m[i]; t2 = EP0(a) + MAJ(a,b,c); \
+#define ROUND_0(k, i) \
+    t1 = h + EP1(e) + CH(e,f,g) + k + m[i]; \
+    t2 = EP0(a) + MAJ(a,b,c); \
+    h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+
+#define ROUND_1(k, i) \
+    x = SIG1(m[(i+14)%16]) + m[(i+9)%16] + SIG0(m[(i+1)%16]) + m[i]; \
+    m[i] = x; \
+    t1 = h + EP1(e) + CH(e,f,g) + k + x; \
+    t2 = EP0(a) + MAJ(a,b,c); \
     h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
 
 __device__ void sha256(const u8 payload[64], u32 state[8]) {
-	u32 a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
+	u32 a, b, c, d, e, f, g, h, t1, t2, x; 
 
-	for (i = 0, j = 0; i < 16; ++i, j += 4)
-		m[i] = (payload[j] << 24) | (payload[j + 1] << 16) | (payload[j + 2] << 8) | (payload[j + 3]);
+    u32 m[16];
 
-	for ( ; i < 64; ++i)
-		m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+	for (u32 i = 0; i < 16; i++) {
+		m[i] = (payload[i*4] << 24) | (payload[i*4+1] << 16) | (payload[i*4+2] << 8) | (payload[i*4+3]);
+    }
 
 	a = state[0];
 	b = state[1];
@@ -124,70 +132,73 @@ __device__ void sha256(const u8 payload[64], u32 state[8]) {
 	g = state[6];
 	h = state[7];
 
-    ROUND(0x428a2f98, 0);
-    ROUND(0x71374491, 1);
-    ROUND(0xb5c0fbcf, 2);
-    ROUND(0xe9b5dba5, 3);
-    ROUND(0x3956c25b, 4);
-    ROUND(0x59f111f1, 5);
-    ROUND(0x923f82a4, 6);
-    ROUND(0xab1c5ed5, 7);
-    ROUND(0xd807aa98, 8);
-    ROUND(0x12835b01, 9);
-    ROUND(0x243185be,10);
-    ROUND(0x550c7dc3,11);
-    ROUND(0x72be5d74,12);
-    ROUND(0x80deb1fe,13);
-    ROUND(0x9bdc06a7,14);
-    ROUND(0xc19bf174,15);
-    ROUND(0xe49b69c1,16);
-    ROUND(0xefbe4786,17);
-    ROUND(0x0fc19dc6,18);
-    ROUND(0x240ca1cc,19);
-    ROUND(0x2de92c6f,20);
-    ROUND(0x4a7484aa,21);
-    ROUND(0x5cb0a9dc,22);
-    ROUND(0x76f988da,23);
-    ROUND(0x983e5152,24);
-    ROUND(0xa831c66d,25);
-    ROUND(0xb00327c8,26);
-    ROUND(0xbf597fc7,27);
-    ROUND(0xc6e00bf3,28);
-    ROUND(0xd5a79147,29);
-    ROUND(0x06ca6351,30);
-    ROUND(0x14292967,31);
-    ROUND(0x27b70a85,32);
-    ROUND(0x2e1b2138,33);
-    ROUND(0x4d2c6dfc,34);
-    ROUND(0x53380d13,35);
-    ROUND(0x650a7354,36);
-    ROUND(0x766a0abb,37);
-    ROUND(0x81c2c92e,38);
-    ROUND(0x92722c85,39);
-    ROUND(0xa2bfe8a1,40);
-    ROUND(0xa81a664b,41);
-    ROUND(0xc24b8b70,42);
-    ROUND(0xc76c51a3,43);
-    ROUND(0xd192e819,44);
-    ROUND(0xd6990624,45);
-    ROUND(0xf40e3585,46);
-    ROUND(0x106aa070,47);
-    ROUND(0x19a4c116,48);
-    ROUND(0x1e376c08,49);
-    ROUND(0x2748774c,50);
-    ROUND(0x34b0bcb5,51);
-    ROUND(0x391c0cb3,52);
-    ROUND(0x4ed8aa4a,53);
-    ROUND(0x5b9cca4f,54);
-    ROUND(0x682e6ff3,55);
-    ROUND(0x748f82ee,56);
-    ROUND(0x78a5636f,57);
-    ROUND(0x84c87814,58);
-    ROUND(0x8cc70208,59);
-    ROUND(0x90befffa,60);
-    ROUND(0xa4506ceb,61);
-    ROUND(0xbef9a3f7,62);
-    ROUND(0xc67178f2,63);
+    ROUND_0(0x428a2f98, 0);
+    ROUND_0(0x71374491, 1);
+    ROUND_0(0xb5c0fbcf, 2);
+    ROUND_0(0xe9b5dba5, 3);
+    ROUND_0(0x3956c25b, 4);
+    ROUND_0(0x59f111f1, 5);
+    ROUND_0(0x923f82a4, 6);
+    ROUND_0(0xab1c5ed5, 7);
+    ROUND_0(0xd807aa98, 8);
+    ROUND_0(0x12835b01, 9);
+    ROUND_0(0x243185be,10);
+    ROUND_0(0x550c7dc3,11);
+    ROUND_0(0x72be5d74,12);
+    ROUND_0(0x80deb1fe,13);
+    ROUND_0(0x9bdc06a7,14);
+    ROUND_0(0xc19bf174,15);
+
+    ROUND_1(0xe49b69c1, 0);
+    ROUND_1(0xefbe4786, 1);
+    ROUND_1(0x0fc19dc6, 2);
+    ROUND_1(0x240ca1cc, 3);
+    ROUND_1(0x2de92c6f, 4);
+    ROUND_1(0x4a7484aa, 5);
+    ROUND_1(0x5cb0a9dc, 6);
+    ROUND_1(0x76f988da, 7);
+    ROUND_1(0x983e5152, 8);
+    ROUND_1(0xa831c66d, 9);
+    ROUND_1(0xb00327c8,10);
+    ROUND_1(0xbf597fc7,11);
+    ROUND_1(0xc6e00bf3,12);
+    ROUND_1(0xd5a79147,13);
+    ROUND_1(0x06ca6351,14);
+    ROUND_1(0x14292967,15);
+
+    ROUND_1(0x27b70a85, 0);
+    ROUND_1(0x2e1b2138, 1);
+    ROUND_1(0x4d2c6dfc, 2);
+    ROUND_1(0x53380d13, 3);
+    ROUND_1(0x650a7354, 4);
+    ROUND_1(0x766a0abb, 5);
+    ROUND_1(0x81c2c92e, 6);
+    ROUND_1(0x92722c85, 7);
+    ROUND_1(0xa2bfe8a1, 8);
+    ROUND_1(0xa81a664b, 9);
+    ROUND_1(0xc24b8b70,10);
+    ROUND_1(0xc76c51a3,11);
+    ROUND_1(0xd192e819,12);
+    ROUND_1(0xd6990624,13);
+    ROUND_1(0xf40e3585,14);
+    ROUND_1(0x106aa070,15);
+
+    ROUND_1(0x19a4c116, 0);
+    ROUND_1(0x1e376c08, 1);
+    ROUND_1(0x2748774c, 2);
+    ROUND_1(0x34b0bcb5, 3);
+    ROUND_1(0x391c0cb3, 4);
+    ROUND_1(0x4ed8aa4a, 5);
+    ROUND_1(0x5b9cca4f, 6);
+    ROUND_1(0x682e6ff3, 7);
+    ROUND_1(0x748f82ee, 8);
+    ROUND_1(0x78a5636f, 9);
+    ROUND_1(0x84c87814,10);
+    ROUND_1(0x8cc70208,11);
+    ROUND_1(0x90befffa,12);
+    ROUND_1(0xa4506ceb,13);
+    ROUND_1(0xbef9a3f7,14);
+    ROUND_1(0xc67178f2,15);
 
 	state[0] += a;
 	state[1] += b;
