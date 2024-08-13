@@ -1,5 +1,6 @@
 import ninja_syntax as n
 import os
+import sys
 from subprocess import run
 
 join = os.path.join
@@ -32,7 +33,7 @@ def create_build_ninja():
     out.rule(
         name    = 'compile_cuda',
         depfile = '$out.d',
-        command = 'nvcc -MD -MF $out.d -c -O2 $in -o $out',
+        command = 'nvcc -MD -MF $out.d -c -O2 $extraflags $in -o $out',
         )
 
     out.rule(
@@ -42,7 +43,7 @@ def create_build_ninja():
         )
 
     out.rule(
-        name    = 'build_exe',
+        name    = 'build_binary',
         command = 'nvcc -o $out $extraflags $in',
         )
 
@@ -57,25 +58,79 @@ def create_build_ninja():
         command = 'cl -nologo /Fe$out $extraflags $in $linkflags',
         )
 
+    # ------------------------------------------------------------------------------------------- #
+    # Linux build, optimized for RTX4090
+    # ------------------------------------------------------------------------------------------- #
+
     out.build(
-        outputs = outd('sha1_hash_search.obj'),
+        outputs = outd('hash_search.o'),
         rule    = 'compile_cuda',
         inputs  = 'src/sha1_hash_search.cu',
+        variables = {
+            'extraflags': '--gpu-architecture=sm_89 -lto',
+        },
+        )
+
+    out.build(
+        outputs = outd('main.o'),
+        rule    = 'compile_cuda',
+        inputs  = 'src/main.cu',
+        variables = {
+            'extraflags': '--gpu-architecture=sm_89 -lto',
+        }
+        )
+
+    out.build(
+        outputs = outd('hash_search_rtx4090'),
+        rule    = 'build_binary',
+        inputs  = [outd(p) for p in [
+            'hash_search.o',
+            'main.o',
+        ]],
+        variables = {
+            'extraflags': '--gpu-architecture=sm_89',
+        },
+        )
+
+    # ------------------------------------------------------------------------------------------- #
+    # Local Windows build
+    # ------------------------------------------------------------------------------------------- #
+
+    out.build(
+        outputs = outd('hash_search.obj'),
+        rule    = 'compile_cuda',
+        inputs  = 'src/sha1_hash_search.cu',
+        variables = {
+            'extraflags': '-std=c++20',
+        },
         )
 
     out.build(
         outputs = outd('main.obj'),
         rule    = 'compile_cuda',
         inputs  = 'src/main.cu',
+        variables = {
+            'extraflags': '-std=c++20',
+        },
         )
 
     out.build(
-        outputs = outd('sha1_hash_search.exe'),
-        rule    = 'build_exe',
+        outputs = outd('hash_search.exe'),
+        rule    = 'build_binary',
         inputs  = [outd(p) for p in [
-            'sha1_hash_search.obj',
+            'hash_search.obj',
             'main.obj',
         ]],
+        )
+
+    # ------------------------------------------------------------------------------------------- #
+    # Tests
+    # ------------------------------------------------------------------------------------------- #
+
+    out.build(
+        outputs = outd('sha256.obj'),
+        rule    = 'compile_cl_debug',
+        inputs  = 'src/sha256.cpp',
         )
 
     for f in list_files_in_dir('test'):
@@ -92,10 +147,12 @@ def create_build_ninja():
             )
 
     out.build(
-        outputs = outd('sha1_hash_search.test.exe'),
+        outputs = outd('hash_search.test.exe'),
         rule    = 'build_cl_exe',
         inputs  = [outd(p) for p in [
             'jobgenerator.test.obj',
+            'sha256.test.obj',
+            'sha256.obj',
         ]] + [
             'ext/gtest.lib',
             'ext/gtest_main.lib',
@@ -106,12 +163,14 @@ def create_build_ninja():
         },
         )
 
-    out.build(
-        outputs  = 'test',
-        rule     = 'phony',
-        implicit = outd('sha1_hash_search.test.exe'),
-        )
+    #out.build(
+    #    outputs  = 'test',
+    #    rule     = 'phony',
+    #    implicit = outd('sha1_hash_search.test.exe'),
+    #    )
 
 if __name__ == '__main__':
     create_build_ninja()
-    run("ninja")
+    command = ["ninja"] + sys.argv[1:]
+    print("Running command " + str(command))
+    run(command)
