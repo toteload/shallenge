@@ -101,7 +101,7 @@ def create_build_ninja():
         rule    = 'compile_cuda',
         inputs  = 'src/sha1_hash_search.cu',
         variables = {
-            'extraflags': '-std=c++20',
+            'extraflags': '-std=c++20 -lineinfo',
         },
         )
 
@@ -110,7 +110,7 @@ def create_build_ninja():
         rule    = 'compile_cuda',
         inputs  = 'src/main.cu',
         variables = {
-            'extraflags': '-std=c++20',
+            'extraflags': '-std=c++20 -lineinfo',
         },
         )
 
