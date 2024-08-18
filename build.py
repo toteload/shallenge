@@ -65,7 +65,7 @@ def create_build_ninja():
     out.build(
         outputs = outd('hash_search.o'),
         rule    = 'compile_cuda',
-        inputs  = 'src/sha1_hash_search.cu',
+        inputs  = 'src/hash_search.cu',
         variables = {
             'extraflags': '--gpu-architecture=sm_89 -lto',
         },
@@ -99,7 +99,7 @@ def create_build_ninja():
     out.build(
         outputs = outd('hash_search.obj'),
         rule    = 'compile_cuda',
-        inputs  = 'src/sha1_hash_search.cu',
+        inputs  = 'src/hash_search.cu',
         variables = {
             'extraflags': '-std=c++20 -lineinfo',
         },
@@ -172,5 +172,4 @@ def create_build_ninja():
 if __name__ == '__main__':
     create_build_ninja()
     command = ["ninja"] + sys.argv[1:]
-    print("Running command " + str(command))
     run(command)

@@ -1,5 +1,7 @@
 .ninja/
 .vs/
+ext/
+combinations.py
 __pycache__/
 build.ninja
 out/
@@ -7,3 +9,4 @@ out/
 *.ncu-rep
 *.pdb
 *.bat
+notes.txt

@@ -1,6 +1,6 @@
 #include "common.hpp"
 #include "jobgenerator.hpp"
-#include "sha1_hash_search.cuh"
+#include "hash_search.cuh"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -8,8 +8,6 @@
 #include <iostream>
 #include <chrono>
 #include <vector>
-
-static_assert(sizeof(u64) == 8);
 
 #define CHECK_CUDA_ERROR(val) check((val), __FILE__, __LINE__)
 void check(cudaError_t err, const char* const file, const int line) {

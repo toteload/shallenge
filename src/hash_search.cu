@@ -1,4 +1,4 @@
-#include "sha1_hash_search.cuh"
+#include "hash_search.cuh"
 
 u8 alphabet[ALPHABET_SIZE] = { '/', '+', };
 
