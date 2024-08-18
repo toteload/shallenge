@@ -56,7 +56,8 @@ bool is_better_hash(u32 const best[SHA256_STATE_SIZE], u32 const candidate[SHA25
     return false;
 }
 
-__device__ void sha256(const u8 payload[64], u32 state[8]);
+__device__ void sha256_prepare_m(u8 const payload[64], u32 m[16]);
+__device__ void sha256(u32 state[8], u32 m[16]);
 
 __global__ 
 void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
@@ -74,6 +75,8 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 
     };
 
+    u32 m[16];
+
     for (u32 i0 = 0; i0 < ALPHABET_SIZE; i0++) { block[idx[0]] = alphabet_lut[i0];
     for (u32 i1 = 0; i1 < ALPHABET_SIZE; i1++) { block[idx[1]] = alphabet_lut[i1];
     for (u32 i2 = 0; i2 < ALPHABET_SIZE; i2++) { block[idx[2]] = alphabet_lut[i2];
@@ -82,7 +85,8 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
             0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
         };
 
-        sha256(block, candidate);
+        sha256_prepare_m(block, m);
+        sha256(candidate, m);
 
         if (is_better_hash(best, candidate)) {
             memcpy(best, candidate, 32);
@@ -90,6 +94,69 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
     } } }
 
     memcpy(out, best, 32);
+}
+
+// Should be called with exactly 64 threads/block.
+__global__
+void search_block2(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
+    u32 tidx = threadIdx.x;
+    u32 bidx = blockIdx.x;
+
+    __shared__ u8 payload[64];
+    payload[tidx] = (base_payload + 64 * bidx)[tidx];
+
+    __syncthreads();
+
+    u32 const *idx = base_idx + SEARCH_BLOCK_SIZE * bidx;
+
+    u32 best[SHA256_STATE_SIZE] = { 
+        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 
+        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 
+    };
+
+    u32 m[16];
+
+    for (u32 i0 = 0; i0 < ALPHABET_SIZE; i0++) {
+    for (u32 i1 = 0; i1 < ALPHABET_SIZE; i1++) {
+        u32 candidate[SHA256_STATE_SIZE] = {
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        };
+
+        sha256_prepare_m(payload, m);
+
+        u32 mi, ls;
+
+        mi = idx[0] / 4;
+        ls = (3 - (idx[0] % 4)) * 8;
+        m[mi] &= ~(0x000000FF << ls);
+        m[mi] |= alphabet_lut[i0] << ls;
+
+        mi = idx[1] / 4;
+        ls = (3 - (idx[1] % 4)) * 8;
+        m[mi] &= ~(0x000000FF << ls);
+        m[mi] |= alphabet_lut[i1] << ls;
+
+        mi = idx[2] / 4;
+        ls = (3 - (idx[2] % 4)) * 8;
+        m[mi] &= ~(0x000000FF << ls);
+        m[mi] |= alphabet_lut[tidx] << ls;
+
+        sha256(candidate, m);
+
+        if (is_better_hash(best, candidate)) {
+            memcpy(best, candidate, 32);
+        }
+    } }
+
+    u32 *out = base_out + SHA256_STATE_SIZE * bidx;
+    memcpy(out, best, 32);
+}
+
+__device__ void sha256_prepare_m(u8 const payload[64], u32 m[16]) {
+	for (u32 i = 0; i < 16; i++) {
+		m[i] = (payload[i*4] << 24) | (payload[i*4+1] << 16) | (payload[i*4+2] << 8) | (payload[i*4+3]);
+    }
 }
 
 #define ROTLEFT(a,b)  (((a) << (b)) | ((a) >> (32-(b))))
@@ -114,14 +181,8 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
     t2 = EP0(a) + MAJ(a,b,c); \
     h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
 
-__device__ void sha256(const u8 payload[64], u32 state[8]) {
+__device__ void sha256(u32 state[8], u32 m[16]) {
 	u32 a, b, c, d, e, f, g, h, t1, t2, x; 
-
-    u32 m[16];
-
-	for (u32 i = 0; i < 16; i++) {
-		m[i] = (payload[i*4] << 24) | (payload[i*4+1] << 16) | (payload[i*4+2] << 8) | (payload[i*4+3]);
-    }
 
 	a = state[0];
 	b = state[1];

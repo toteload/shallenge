@@ -41,9 +41,9 @@ struct Context {
 };
 
 void search(Context const &ctx, std::vector<JobDescription> &jobs, char const *header, u32 header_len) {
-    u32 const payload_buffer_size      = ctx.grid_size * ctx.block_size * 64;
-    u32 const search_index_buffer_size = ctx.grid_size * ctx.block_size * 12;
-    u32 const out_buffer_size          = ctx.grid_size * ctx.block_size * 32;
+    u32 const payload_buffer_size      = ctx.grid_size * 64;
+    u32 const search_index_buffer_size = ctx.grid_size * 12;
+    u32 const out_buffer_size          = ctx.grid_size * 32;
 
     for (u32 i = 0; i < jobs.size(); i++) {
         write_payload(jobs[i], header, header_len, ctx.host.payload + i * 64);
@@ -75,7 +75,7 @@ void search(Context const &ctx, std::vector<JobDescription> &jobs, char const *h
         )
     );
 
-    search_block<<<ctx.grid_size, ctx.block_size, 0, ctx.stream>>>(
+    search_block2<<<ctx.grid_size, ctx.block_size, 0, ctx.stream>>>(
         ctx.device.payload,
         ctx.device.search_index,
         ctx.device.out
@@ -116,11 +116,6 @@ void find_payload(JobDescription const &job, char const *header, u32 header_len,
 int main() {
     initialize_cuda_constants();
 
-    int grid_size, block_size;
-    cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, search_block, 0, 0);
-
-    printf("Grid size: %u | Block size: %u\n", grid_size, block_size);
-
     char const *header = "toteload/davidbos+dot+me/";
     u32 header_len = strlen(header);
 
@@ -135,9 +130,12 @@ int main() {
     generator.product_idx_max = 64 * 64 * 64 * 64;
 #endif
 
+    int block_size = 64;
+    int grid_size = 65535;
+
     std::vector<JobDescription> jobs[2];
-    jobs[0].resize(block_size * grid_size);
-    jobs[1].resize(block_size * grid_size);
+    jobs[0].resize(grid_size);
+    jobs[1].resize(grid_size);
 
     cudaStream_t stream[2];
     for (u32 i = 0; i < 2; i++) {
@@ -149,10 +147,10 @@ int main() {
         CHECK_CUDA_ERROR(cudaEventCreateWithFlags(&event[i], cudaEventDisableTiming | cudaEventBlockingSync));
     }
 
-    u32 const payload_buffer_size = grid_size * block_size * 64;
+    u32 const payload_buffer_size = grid_size * 64;
 
-    u32 const search_index_buffer_length = grid_size * block_size * 3;
-    u32 const out_buffer_length          = grid_size * block_size * SHA256_STATE_SIZE;
+    u32 const search_index_buffer_length = grid_size * 3;
+    u32 const out_buffer_length          = grid_size * SHA256_STATE_SIZE;
 
     u32 const search_index_buffer_size = search_index_buffer_length * sizeof(u32);
     u32 const out_buffer_size          = out_buffer_length          * sizeof(u32);
@@ -237,7 +235,7 @@ int main() {
 
         u32 const *out = out_host + buf_idx * out_buffer_length;
 
-        for (int i = 0; i < block_size * grid_size; i++) {
+        for (int i = 0; i < jobs[0].size(); i++) {
             u32 const *candidate = out + i * SHA256_STATE_SIZE;
             if (is_better_hash(best_hash, candidate)) {
                 auto job = jobs[buf_idx][i];
@@ -263,7 +261,7 @@ int main() {
         auto end = std::chrono::high_resolution_clock::now();
         auto d = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
-        double hashrate = (double)(64*64*64) * grid_size * block_size / 1'000'000'000.0 / d.count();
+        double hashrate = (double)(64*64*64) * grid_size / 1'000'000'000.0 / d.count();
         auto job = jobs[buf_idx].back();
         printf("%3.3f GH/s | Last = search_idx: [%2d, %2d, %2d], len: %2d, product_idx: %" PRIu64 "\n", 
             hashrate,
