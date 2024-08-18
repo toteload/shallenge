@@ -59,20 +59,14 @@ bool is_better_hash(u32 const best[SHA256_STATE_SIZE], u32 const candidate[SHA25
 __device__ void sha256(const u8 payload[64], u32 state[8]);
 
 __global__ 
-void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
+void search_block(const u8 *base_payload, const u32 *base_idx, u8 *base_has_improvement, u32 best_block, u32 zero_block_count) {
     u32 offset = threadIdx.x + blockIdx.x * blockDim.x;
 
     u8  const *payload = base_payload + 64 * offset;
     u32 const *idx     = base_idx     + SEARCH_BLOCK_SIZE * offset;
-    u32       *out     = base_out     + SHA256_STATE_SIZE * offset;
 
     u8 block[64];
     memcpy(block, payload, 64);
-
-    u32 best[SHA256_STATE_SIZE] = { 
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 
-    };
 
     for (u32 i0 = 0; i0 < ALPHABET_SIZE; i0++) { block[idx[0]] = alphabet_lut[i0];
     for (u32 i1 = 0; i1 < ALPHABET_SIZE; i1++) { block[idx[1]] = alphabet_lut[i1];
@@ -84,12 +78,20 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
 
         sha256(block, candidate);
 
-        if (is_better_hash(best, candidate)) {
-            memcpy(best, candidate, 32);
+        for (u32 i = 0; i < zero_block_count; i++) {
+            if (candidate[i] != 0) {
+                goto next;
+            }
         }
-    } } }
 
-    memcpy(out, best, 32);
+        if (candidate[zero_block_count] < best_block) {
+            base_has_improvement[threadIdx.x] = 1;
+            return;
+        }
+
+        next: /* end of iteration */
+        continue;
+    } } }
 }
 
 #define ROTLEFT(a,b)  (((a) << (b)) | ((a) >> (32-(b))))

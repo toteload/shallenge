@@ -15,4 +15,4 @@ __device__ __host__ bool is_better_hash(u32 const best[5], u32 const candidate[5
 
            __host__ void sha256_host(const u8 block[64], u32 state[SHA256_STATE_SIZE]);
 
-__global__ void search_block(const u8 payload[64], const u32 *idx, u32 *out);
+__global__ void search_block(const u8 *base_payload, const u32 *idx, u8 *base_has_improvement, u32 best_block, u32 zero_block_count);
