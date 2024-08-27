@@ -1,42 +1,9 @@
 #include "hash_search.cuh"
-
-u8 alphabet[ALPHABET_SIZE] = { '/', '+', };
+#include "jobgenerator.hpp"
 
 __constant__ u8 alphabet_lut[ALPHABET_SIZE];
 
-void write_payload(JobDescription const &job, char const *header, u32 header_len, u8 payload[64]) {
-    memset(payload, 0, 64);
-
-    memcpy(payload, header, header_len);
-    
-    u32 total_len = header_len + job.length;
-    payload[total_len] = 0x80;
-
-    u32 bit_len = total_len * 8;
-    payload[62] = bit_len / 256;
-    payload[63] = bit_len % 256;
-
-    u64 acc = job.product_idx;
-
-    for (u32 i = 0; i < job.length; i++) {
-        if (job.search_idxs[0] == i ||
-            job.search_idxs[1] == i ||
-            job.search_idxs[2] == i)
-        {
-            continue;
-        }
-
-        payload[header_len + i] = alphabet[acc % 64];
-
-        acc /= 64;
-    }
-}
-
 void initialize_cuda_constants() {
-    u32 i = 2;
-    for (u32 j = 0; j < 10; i++, j++) { alphabet[i] = '0' + j; }
-    for (u32 j = 0; j < 26; i++, j++) { alphabet[i] = 'a' + j; }
-    for (u32 j = 0; j < 26; i++, j++) { alphabet[i] = 'A' + j; }
     cudaMemcpyToSymbol(alphabet_lut, alphabet, sizeof(alphabet), 0, cudaMemcpyDefault);
 }
 
@@ -64,35 +31,29 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
 
     u8  const *payload = base_payload + 64 * offset;
     u32 const *idx     = base_idx     + SEARCH_BLOCK_SIZE * offset;
-    u32       *out     = base_out     + SHA256_STATE_SIZE * offset;
+    u32       *out     = base_out     + 2 * offset;
 
     u8 block[64];
     memcpy(block, payload, 64);
 
-    u32 best[SHA256_STATE_SIZE] = { 
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 
-    };
+    u32 best_hash_head[2] = { 0xFFFFFFFF, 0xFFFFFFFF, };
 
     for (u32 i0 = 0; i0 < ALPHABET_SIZE; i0++) { block[idx[0]] = alphabet_lut[i0];
     for (u32 i1 = 0; i1 < ALPHABET_SIZE; i1++) { block[idx[1]] = alphabet_lut[i1];
     for (u32 i2 = 0; i2 < ALPHABET_SIZE; i2++) { block[idx[2]] = alphabet_lut[i2];
-        u32 candidate[SHA256_STATE_SIZE] = { 
-            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-        };
 
-        sha256(block, candidate);
+        u32 m[16], candidate[2];
+        memcpy(m, block, 64);
+        sha256(m, candidate);
 
         if (is_better_hash(best, candidate)) {
-            memcpy(best, candidate, 32);
+            memcpy(best_hash_head, candidate, 2 * sizeof(u32));
         }
     } } }
 
-    memcpy(out, best, 32);
+    memcpy(out, best_hash_head, 2 * sizeof(u32));
 }
 
-#define ROTLEFT(a,b)  (((a) << (b)) | ((a) >> (32-(b))))
 #define ROTRIGHT(a,b) (((a) >> (b)) | ((a) << (32-(b))))
 
 #define CH(x,y,z)  (((x) & (y)) ^ (~(x) & (z)))
@@ -102,52 +63,45 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
 #define SIG0(x)    (ROTRIGHT(x, 7) ^ ROTRIGHT(x,18) ^ ((x) >> 3))
 #define SIG1(x)    (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10))
 
-#define ROUND_0(k, i) \
-    t1 = h + EP1(e) + CH(e,f,g) + k + m[i]; \
+#define ROUND_0(k, x) \
+    t1 = h + EP1(e) + CH(e,f,g) + k + x; \
     t2 = EP0(a) + MAJ(a,b,c); \
     h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
 
 #define ROUND_1(k, i) \
     x = SIG1(m[(i+14)%16]) + m[(i+9)%16] + SIG0(m[(i+1)%16]) + m[i]; \
     m[i] = x; \
-    t1 = h + EP1(e) + CH(e,f,g) + k + x; \
-    t2 = EP0(a) + MAJ(a,b,c); \
-    h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+    ROUND_0(k, x)
 
-__device__ void sha256(const u8 payload[64], u32 state[8]) {
-	u32 a, b, c, d, e, f, g, h, t1, t2, x; 
+__device__ void sha256(u32 m[16], u32 state_head_out[2]) {
+	u32 a = 0x6a09e667;
+	u32 b = 0xbb67ae85;
+	u32 c = 0x3c6ef372;
+	u32 d = 0xa54ff53a;
 
-    u32 m[16];
+	u32 e = 0x510e527f;
+	u32 f = 0x9b05688c;
+	u32 g = 0x1f83d9ab;
+	u32 h = 0x5be0cd19;
 
-	for (u32 i = 0; i < 16; i++) {
-		m[i] = (payload[i*4] << 24) | (payload[i*4+1] << 16) | (payload[i*4+2] << 8) | (payload[i*4+3]);
-    }
+	u32 t1, t2, x; 
 
-	a = state[0];
-	b = state[1];
-	c = state[2];
-	d = state[3];
-	e = state[4];
-	f = state[5];
-	g = state[6];
-	h = state[7];
-
-    ROUND_0(0x428a2f98, 0);
-    ROUND_0(0x71374491, 1);
-    ROUND_0(0xb5c0fbcf, 2);
-    ROUND_0(0xe9b5dba5, 3);
-    ROUND_0(0x3956c25b, 4);
-    ROUND_0(0x59f111f1, 5);
-    ROUND_0(0x923f82a4, 6);
-    ROUND_0(0xab1c5ed5, 7);
-    ROUND_0(0xd807aa98, 8);
-    ROUND_0(0x12835b01, 9);
-    ROUND_0(0x243185be,10);
-    ROUND_0(0x550c7dc3,11);
-    ROUND_0(0x72be5d74,12);
-    ROUND_0(0x80deb1fe,13);
-    ROUND_0(0x9bdc06a7,14);
-    ROUND_0(0xc19bf174,15);
+    ROUND_0(0x428a2f98,m[ 0]);
+    ROUND_0(0x71374491,m[ 1]);
+    ROUND_0(0xb5c0fbcf,m[ 2]);
+    ROUND_0(0xe9b5dba5,m[ 3]);
+    ROUND_0(0x3956c25b,m[ 4]);
+    ROUND_0(0x59f111f1,m[ 5]);
+    ROUND_0(0x923f82a4,m[ 6]);
+    ROUND_0(0xab1c5ed5,m[ 7]);
+    ROUND_0(0xd807aa98,m[ 8]);
+    ROUND_0(0x12835b01,m[ 9]);
+    ROUND_0(0x243185be,m[10]);
+    ROUND_0(0x550c7dc3,m[11]);
+    ROUND_0(0x72be5d74,m[12]);
+    ROUND_0(0x80deb1fe,m[13]);
+    ROUND_0(0x9bdc06a7,m[14]);
+    ROUND_0(0xc19bf174,m[15]);
 
     ROUND_1(0xe49b69c1, 0);
     ROUND_1(0xefbe4786, 1);
@@ -200,14 +154,8 @@ __device__ void sha256(const u8 payload[64], u32 state[8]) {
     ROUND_1(0xbef9a3f7,14);
     ROUND_1(0xc67178f2,15);
 
-	state[0] += a;
-	state[1] += b;
-	state[2] += c;
-	state[3] += d;
-	state[4] += e;
-	state[5] += f;
-	state[6] += g;
-	state[7] += h;
+	state_head[0] = 0x6a09e667a + a;
+	state_head[1] = 0xbb67ae85b + b;
 }
 
 __host__
