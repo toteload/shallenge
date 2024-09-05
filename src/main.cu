@@ -234,7 +234,15 @@ int main() {
         auto d = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 
         double hashrate = (double)(64*64*64) * grid_size * block_size / 1'000'000'000.0 / d.count();
-        printf("%3.3f GH/s | Last = ???\n", hashrate);
+        u8 last_payload[64];
+        memcpy(last_payload, payload_host + buf_idx * payload_buffer_size + (grid_size * block_size - 1) * 64, 64);
+
+        for (u32 i = 0; i < 16; i++) {
+            std::swap(last_payload[i*4+0], last_payload[i*4+3]);
+            std::swap(last_payload[i*4+1], last_payload[i*4+2]);
+        }
+
+        printf("%3.3f GH/s | Last = %.55s\n", hashrate, last_payload);
 
         buf_idx = next_buf_idx;
     }
