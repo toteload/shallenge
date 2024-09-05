@@ -175,14 +175,14 @@ def ch(x,y,z): return (x & y) ^ (~x & z)
 # Cost: 3 AND, 2 XOR
 def maj(x,y,z): return (x & y) ^ (x & z) ^ (y & z)
 
-variable_index = list(range(6, 13))
+variable_index = list(range(6, 14))
 
 for vi in variable_index:
     l = 4 * (vi + 1)
     a,b,c,d,e,f,g,h = [Const(x) for x in SHA256_SEED]
     k = [Const(x) for x in ROUND_CONST]
     m = intialize_m_from_payload("toteload/davidbos+dot+me/", l)
-    m[vi-1], m[vi] = Var('m0'), Var('m1')
+    m[vi] = Var('m')
 
     print(f'Length: {l}')
     print(m)

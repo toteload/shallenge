@@ -73,18 +73,17 @@ void search_block(const u8 *base_payload, const u32 *base_idx, u32 *base_out) {
     m[i] = x; \
     ROUND_0(k, x)
 
-__device__ void sha256(u32 m[16], u32 state_head_out[2]) {
-	u32 a = 0x6a09e667;
-	u32 b = 0xbb67ae85;
-	u32 c = 0x3c6ef372;
-	u32 d = 0xa54ff53a;
+__device__ __host__ void sha256_l55_prepare(uint32_t m[16], uint32_t reg[8]) {
+    u32 a = reg[0];
+    u32 b = reg[1];
+    u32 c = reg[2];
+    u32 d = reg[3];
+    u32 e = reg[4];
+    u32 f = reg[5];
+    u32 g = reg[6];
+    u32 h = reg[7];
 
-	u32 e = 0x510e527f;
-	u32 f = 0x9b05688c;
-	u32 g = 0x1f83d9ab;
-	u32 h = 0x5be0cd19;
-
-	u32 t1, t2, x; 
+    u32 t1, t2, x;
 
     ROUND_0(0x428a2f98,m[ 0]);
     ROUND_0(0x71374491,m[ 1]);
@@ -99,6 +98,29 @@ __device__ void sha256(u32 m[16], u32 state_head_out[2]) {
     ROUND_0(0x243185be,m[10]);
     ROUND_0(0x550c7dc3,m[11]);
     ROUND_0(0x72be5d74,m[12]);
+
+    reg[0] = a;
+    reg[1] = b;
+    reg[2] = c;
+    reg[3] = d;
+    reg[4] = e;
+    reg[5] = f;
+    reg[6] = g;
+    reg[7] = h;
+}
+
+__device__ void sha256_l55(u32 m[16], u32 reg[8], u32 state_head_out[2]) {
+    u32 a = reg[0];
+    u32 b = reg[1];
+    u32 c = reg[2];
+    u32 d = reg[3];
+    u32 e = reg[4];
+    u32 f = reg[5];
+    u32 g = reg[6];
+    u32 h = reg[7];
+
+    u32 t1, t2, x; 
+
     ROUND_0(0x80deb1fe,m[13]);
     ROUND_0(0x9bdc06a7,m[14]);
     ROUND_0(0xc19bf174,m[15]);
