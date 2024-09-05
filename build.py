@@ -37,26 +37,26 @@ def create_build_ninja():
         )
 
     out.rule(
-        name    = "compile_debug",
+        name    = "compile_cuda_debug",
         depfile = '$out.d',
-        command = 'nvcc -MD -MF $out.d $extraflags -g -c $in -o $out',
+        command = 'nvcc -Xcompiler /FS -Xcompiler -MTd -MD -MF $out.d $extraflags -g -c $in -o $out',
         )
 
     out.rule(
-        name    = 'build_binary',
-        command = 'nvcc -o $out $extraflags $in',
+        name    = 'build_cuda_binary',
+        command = 'nvcc -o $out $extraflags $in $linkflags',
         )
 
-    out.rule(
-        name    = "compile_cl_debug",
-        deps    = 'msvc',
-        command = 'clang-cl -nologo -MTd /showIncludes /EHsc $extraflags -Zi -c $in -o $out',
-        )
+    # out.rule(
+    #     name    = "compile_cl_debug",
+    #     deps    = 'msvc',
+    #     command = 'clang-cl -nologo -MTd -W4 /showIncludes /EHsc $extraflags -Zi -c $in -o $out',
+    #     )
 
-    out.rule(
-        name    = 'build_cl_exe',
-        command = 'cl -nologo /Fe$out $extraflags $in $linkflags',
-        )
+    # out.rule(
+    #     name    = 'build_cl_exe',
+    #     command = 'clang-cl -nologo /Fe$out $extraflags $in $linkflags',
+    #     )
 
     # ------------------------------------------------------------------------------------------- #
     # Linux build, optimized for RTX4090
@@ -82,7 +82,7 @@ def create_build_ninja():
 
     out.build(
         outputs = outd('hash_search_rtx4090'),
-        rule    = 'build_binary',
+        rule    = 'build_cuda_binary',
         inputs  = [outd(p) for p in [
             'hash_search.o',
             'main.o',
@@ -95,6 +95,12 @@ def create_build_ninja():
     # ------------------------------------------------------------------------------------------- #
     # Local Windows build
     # ------------------------------------------------------------------------------------------- #
+
+    out.build(
+        outputs = outd('jobgenerator.obj'),
+        rule    = 'compile_cuda',
+        inputs  = 'src/jobgenerator.cpp',
+        )
 
     out.build(
         outputs = outd('hash_search.obj'),
@@ -116,30 +122,40 @@ def create_build_ninja():
 
     out.build(
         outputs = outd('hash_search.exe'),
-        rule    = 'build_binary',
+        rule    = 'build_cuda_binary',
         inputs  = [outd(p) for p in [
             'hash_search.obj',
+            'jobgenerator.obj',
             'main.obj',
         ]],
         )
 
     # ------------------------------------------------------------------------------------------- #
-    # Tests
+    # Local Windows test
     # ------------------------------------------------------------------------------------------- #
 
     out.build(
-        outputs = outd('sha256.obj'),
-        rule    = 'compile_cl_debug',
-        inputs  = 'src/sha256.cpp',
+        outputs = outd('jobgenerator_debug.obj'),
+        rule    = 'compile_cuda_debug',
+        inputs  = 'src/jobgenerator.cpp',
         )
 
+    out.build(
+        outputs = outd('hash_search_debug.obj'),
+        rule    = 'compile_cuda_debug',
+        inputs  = 'src/hash_search.cu',
+    )
+
     for f in list_files_in_dir('test'):
-        base, _ = os.path.splitext(f);
+        base, ext = os.path.splitext(f);
         if not base.endswith('.test'):
             continue
+
+        rule = 'compile_cuda_debug'
+
         out.build(
             outputs   = outd(base) + '.obj',
-            rule      = 'compile_cl_debug',
+            rule      = rule,
             inputs    = join('test', f),
             variables = {
                 'extraflags': '-I src -I ext',
@@ -148,18 +164,20 @@ def create_build_ninja():
 
     out.build(
         outputs = outd('hash_search.test.exe'),
-        rule    = 'build_cl_exe',
+        rule    = 'build_cuda_binary',
         inputs  = [outd(p) for p in [
             'jobgenerator.test.obj',
             'sha256.test.obj',
-            'sha256.obj',
+            'sha256_l55.test.obj',
+            'hash_search_debug.obj',
+            'jobgenerator_debug.obj',
         ]] + [
             'ext/gtest.lib',
             'ext/gtest_main.lib',
         ],
         variables = {
-            'extraflags': '-Zi',
-            'linkflags': '-link -subsystem:console',
+            'extraflags': '-Xcompiler -Zi',
+            'linkflags':  'libcmtd.lib -Xlinker -subsystem:console',
         },
         )
 

@@ -1,4 +1,6 @@
 #include "jobgenerator.hpp"
+#include <string.h>
+#include <algorithm>
 
 u8 const alphabet[ALPHABET_SIZE] = {  
     '/', '+', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd',
@@ -14,21 +16,31 @@ LongJobGenerator::LongJobGenerator(char const *header) {
     exhausted = false;
 }
 
-bool LongJobGenerator::next(u64 payload[64]) {
+bool LongJobGenerator::next(u8 payload[64]) {
     if (exhausted) {
         return false;
     }
 
     memset(payload, 0, 64);
-    memcpy(job.payload, state, header_length);
+    memcpy(payload, state, header_length);
 
-    for (u32 i = header_length; i < MAX_PAYLOAD_LENGTH; i++) {
+    for (u32 i = header_length; i < MAX_PAYLOAD_LENGTH - 3; i++) {
         payload[i] = alphabet[state[i]];
     }
 
-    job.payload[61] = 0x80;
-    job.payload[62] = (MAX_PAYLOAD_LENGTH * 8) / 256;
-    job.payload[63] = (MAX_PAYLOAD_LENGTH * 8) % 256;
+    payload[MAX_PAYLOAD_LENGTH] = 0x80;
+
+    payload[62] = (MAX_PAYLOAD_LENGTH * 8) / 256;
+    payload[63] = (MAX_PAYLOAD_LENGTH * 8) % 256;
+
+    // Convert to big endian as preprocessing step for SHA256 comsumption.
+
+    for (u32 i = 0; i < 16; i++) {
+        std::swap(payload[i*4+0], payload[i*4+3]);
+        std::swap(payload[i*4+1], payload[i*4+2]);
+    }
+
+    // Advance internal state
 
     bool carry = true;
     for (u32 i = header_length; i < MAX_PAYLOAD_LENGTH && carry; i++) {
