@@ -45,7 +45,7 @@ bool LongJobGenerator::next(u8 payload[64]) {
     bool carry = true;
     for (u32 i = header_length; i < MAX_PAYLOAD_LENGTH && carry; i++) {
         state[i] = (state[i] + 1) % 64;
-        carry = state[header_length] == 0;
+        carry = state[i] == 0;
     }
 
     exhausted = carry;

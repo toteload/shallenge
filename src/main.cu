@@ -38,7 +38,7 @@ struct Context {
 
 void search(Context const &ctx) {
     u32 const payload_buffer_size = ctx.grid_size * ctx.block_size * 64;
-    u32 const out_buffer_size     = ctx.grid_size * ctx.block_size * 8;
+    u32 const out_buffer_size     = ctx.grid_size * ctx.block_size * 2 * sizeof(u32);
 
     CHECK_CUDA_ERROR(
         cudaMemcpyAsync(
@@ -146,6 +146,10 @@ int main() {
 
     u32 buf_idx = 0;
 
+    for (u32 i = 0; i < grid_size * block_size; i++) {
+        generator.next(payload_host + i * 64);
+    }
+
     search({
         .host = {
             .payload = payload_host,
@@ -204,8 +208,12 @@ int main() {
 
             if (is_better_hash_head(best_hash, candidate)) {
                 u8 *search_payload = payload_host + buf_idx * payload_buffer_size + i * 64;
-
                 find_best_payload(search_payload, best_payload, best_hash);
+
+                for (u32 i = 0; i < 16; i++) {
+                    std::swap(best_payload[i*4+0], best_payload[i*4+3]);
+                    std::swap(best_payload[i*4+1], best_payload[i*4+2]);
+                }
 
                 printf("NEW BEST! %.55s - %08x %08x %08x %08x %08x %08x %08x %08x\n",
                     best_payload,
