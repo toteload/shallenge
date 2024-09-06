@@ -7,11 +7,11 @@ It uses CUDA to run the hashing on the GPU.
 The current version of the code uses some preprocessing of the SHA256 hashing function to speed up the search.
 Preprocessing can be done, because the payload largely stays the same during the search.
 The amount of preprocessing is optimized by putting the variable part of the payload at the end,
-and always using a payload of the maximum length of 55 characters.
-This allows us to precompute the first 13 rounds of the SHA256 function.
+and always using a payload of 55 characters (the maximum amount characters that fit in one "chunk").
+This allows us to precompute the first 13 rounds of the SHA256 function that processes a chunk.
 On an RTX4090 it achieves a speed of 21.3 GH/s.
 
-To find the number of rounds that is safe to precompute without changing the output was found using the script `constant_sha256_steps.py`.
+The number of rounds that is safe to precompute without changing the output was found using the script `constant_sha256_steps.py`.
 It is a bit dirty and does more than it needs to, but it gets the job done.
 
 The lowest value SHA256 hash I found is `00000000 000154ca 99d4bfc2 911a4f62 d046e935 5eaa7e1e bcb1575b 6be2c870`
