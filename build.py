@@ -47,20 +47,18 @@ def create_build_ninja():
         command = 'nvcc -o $out $extraflags $in $linkflags',
         )
 
-    # out.rule(
-    #     name    = "compile_cl_debug",
-    #     deps    = 'msvc',
-    #     command = 'clang-cl -nologo -MTd -W4 /showIncludes /EHsc $extraflags -Zi -c $in -o $out',
-    #     )
-
-    # out.rule(
-    #     name    = 'build_cl_exe',
-    #     command = 'clang-cl -nologo /Fe$out $extraflags $in $linkflags',
-    #     )
-
     # ------------------------------------------------------------------------------------------- #
     # Linux build, optimized for RTX4090
     # ------------------------------------------------------------------------------------------- #
+
+    out.build(
+        outputs = outd('jobgenerator.o'),
+        rule    = 'compile_cuda',
+        inputs  = 'src/jobgenerator.cpp',
+        variables = {
+            'extraflags': '--gpu-architecture=sm_89 -lto',
+        },
+        )
 
     out.build(
         outputs = outd('hash_search.o'),
@@ -84,11 +82,12 @@ def create_build_ninja():
         outputs = outd('hash_search_rtx4090'),
         rule    = 'build_cuda_binary',
         inputs  = [outd(p) for p in [
+            'jobgenerator.o',
             'hash_search.o',
             'main.o',
         ]],
         variables = {
-            'extraflags': '--gpu-architecture=sm_89',
+            'extraflags': '--gpu-architecture=sm_89 -lto',
         },
         )
 
@@ -124,8 +123,8 @@ def create_build_ninja():
         outputs = outd('hash_search.exe'),
         rule    = 'build_cuda_binary',
         inputs  = [outd(p) for p in [
-            'hash_search.obj',
             'jobgenerator.obj',
+            'hash_search.obj',
             'main.obj',
         ]],
         )
