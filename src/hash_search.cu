@@ -196,26 +196,26 @@ __device__ __host__ void sha256_l55(u32 m[16], u32 reg[8], u32 state_head_out[2]
     ROUND_1(0xbef9a3f7,14);
     ROUND_1(0xc67178f2,15);
 
-	state_head_out[0] = 0x6a09e667 + a;
-	state_head_out[1] = 0xbb67ae85 + b;
+    state_head_out[0] = 0x6a09e667 + a;
+    state_head_out[1] = 0xbb67ae85 + b;
 }
 
 __host__
 void sha256(const u8 payload[64], u32 state[8])
 {
-	u32 a, b, c, d, e, f, g, h, t1, t2, m[16];
+    u32 a, b, c, d, e, f, g, h, t1, t2, m[16];
 
-	for (u32 i = 0, j = 0; i < 16; ++i, j += 4)
-		m[i] = (payload[j] << 24) | (payload[j + 1] << 16) | (payload[j + 2] << 8) | (payload[j + 3]);
+    for (u32 i = 0, j = 0; i < 16; ++i, j += 4)
+        m[i] = (payload[j] << 24) | (payload[j + 1] << 16) | (payload[j + 2] << 8) | (payload[j + 3]);
 
-	a = state[0];
-	b = state[1];
-	c = state[2];
-	d = state[3];
-	e = state[4];
-	f = state[5];
-	g = state[6];
-	h = state[7];
+    a = state[0];
+    b = state[1];
+    c = state[2];
+    d = state[3];
+    e = state[4];
+    f = state[5];
+    g = state[6];
+    h = state[7];
 
     ROUND_0(0x428a2f98,m[ 0]);
     ROUND_0(0x71374491,m[ 1]);
@@ -285,31 +285,31 @@ void sha256(const u8 payload[64], u32 state[8])
     ROUND_1(0xbef9a3f7,14);
     ROUND_1(0xc67178f2,15);
 
-	state[0] += a;
-	state[1] += b;
-	state[2] += c;
-	state[3] += d;
-	state[4] += e;
-	state[5] += f;
-	state[6] += g;
-	state[7] += h;
+    state[0] += a;
+    state[1] += b;
+    state[2] += c;
+    state[3] += d;
+    state[4] += e;
+    state[5] += f;
+    state[6] += g;
+    state[7] += h;
 }
 
 __host__
 void sha256_big_endian(const u8 payload[64], u32 state[8])
 {
-	u32 a, b, c, d, e, f, g, h, t1, t2, m[16];
+    u32 a, b, c, d, e, f, g, h, t1, t2, m[16];
 
     memcpy(m, payload, 64);
 
-	a = state[0];
-	b = state[1];
-	c = state[2];
-	d = state[3];
-	e = state[4];
-	f = state[5];
-	g = state[6];
-	h = state[7];
+    a = state[0];
+    b = state[1];
+    c = state[2];
+    d = state[3];
+    e = state[4];
+    f = state[5];
+    g = state[6];
+    h = state[7];
 
     ROUND_0(0x428a2f98,m[ 0]);
     ROUND_0(0x71374491,m[ 1]);
@@ -379,13 +379,13 @@ void sha256_big_endian(const u8 payload[64], u32 state[8])
     ROUND_1(0xbef9a3f7,14);
     ROUND_1(0xc67178f2,15);
 
-	state[0] += a;
-	state[1] += b;
-	state[2] += c;
-	state[3] += d;
-	state[4] += e;
-	state[5] += f;
-	state[6] += g;
-	state[7] += h;
+    state[0] += a;
+    state[1] += b;
+    state[2] += c;
+    state[3] += d;
+    state[4] += e;
+    state[5] += f;
+    state[6] += g;
+    state[7] += h;
 }
 
