@@ -1,4 +1,4 @@
-# SHA256 hash search
+# SHAllenge searcher
 
 This repository holds code to find a string of a specific format that gives a SHA256 hash with the lowest value. 
 More specifically, it is to participate on [this online leaderboard](https://shallenge.quirino.net/).
